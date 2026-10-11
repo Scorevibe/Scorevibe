@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SportVibe — Le sport en direct, ensemble</title>
+<style>
+:root{
+  --bg:#0b0f14;
+  --card:#131a23;
+  --line:#22303d;
+  --text:#e8eef5;
+  --muted:#8fa3b5;
+  --accent:#22d3ee;
+  --accent2:#a855f7;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+}
+header{
+  position:sticky;
+  top:0;
+  z-index:10;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:14px 18px;
+  background:rgba(11,15,20,.92);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+}
+.logo{font-weight:800;font-size:20px}
+.logo span{color:var(--accent)}
+.layout{
+  display:grid;
+  grid-template-columns:220px 1fr;
+  gap:20px;
+  max-width:1000px;
+  margin:20px auto;
+  padding:0 16px;
+}
+nav{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:12px;
+  height:fit-content;
+}
+nav button{
+  display:block;
+  width:100%;
+  text-align:left;
+  background:none;
+  border:0;
+  color:var(--muted);
+  padding:10px 12px;
+  border-radius:10px;
+  cursor:pointer;
+  font-size:15px;
+}
+nav button.active,
+nav button:hover{
+  background:#1b2531;
+  color:var(--text);
+}
+.composer,
+.post{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:16px;
+  margin-bottom:16px;
+}
+textarea,
+input{
+  width:100%;
+  background:#0e141b;
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:10px;
+  padding:11px;
+  font:inherit;
+}
+textarea{
+  min-height:80px;
+  resize:vertical;
+}
+.row{
+  display:flex;
+  gap:8px;
+  margin-top:10px;
+  flex-wrap:wrap;
+}
+select,
+button{
+  background:#1b2531;
+  color:var(--text);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 14px;
+  font:inherit;
+  cursor:pointer;
+}
+button.primary{
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  border:0;
+  color:#04121a;
+  font-weight:700;
+}
+.post-head{
+  display:flex;
+  justify-content:space-between;
+  color:var(--muted);
+  font-size:13px;
+  margin-bottom:8px;
+}
+.post-text{
+  white-space:pre-wrap;
+  margin:0 0 10px;
+}
+.media{
+  max-width:100%;
+  border-radius:10px;
+  margin-bottom:10px;
+}
+.actions{
+  display:flex;
+  gap:14px;
+  color:var(--muted);
+  font-size:14px;
+}
+.actions button{
+  background:none;
+  border:0;
+  color:var(--muted);
+  padding:0;
+}
+.actions button:hover{
+  color:var(--accent);
+}
+@media(max-width:720px){
+  .layout{grid-template-columns:1fr}
+  nav{display:flex;overflow-x:auto}
+  nav button{white-space:nowrap}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Sport<span>Vibe</span></div>
+  <div style="color:var(--muted);font-size:14px">Le sport en direct, ensemble</div>
+</header>
+
+<div class="layout">
+  <nav id="sports"></nav>
+
+  <main>
+    <div class="composer">
+      <input id="author" placeholder="Ton pseudo" maxlength="40">
+      <textarea id="text" placeholder="Publie un moment du match..."></textarea>
+
+      <div class="row">
+        <select id="sport"></select>
+
+        <select id="mediaType">
+          <option value="">Sans media</option>
+          <option value="image">Image (URL)</option>
+          <option value="video">Video (URL)</option>
+        </select>
+
+        <input id="mediaUrl" placeholder="URL de l'image / video (optionnel)">
+
+        <button class="primary" onclick="publish()">Publier</button>
+      </div>
+    </div>
+
+    <div id="feed"></div>
+  </main>
+</div>
+
+<script>
+const sports = [
+  "Tous",
+  "Football",
+  "Basket",
+  "Rugby",
+  "Handball",
+  "Tennis",
+  "Volley",
+  "Running",
+  "Autre"
+];
+
+let currentSport = "Tous";
+
+const $ = id => document.getElementById(id);
+
+function renderSports() {
+  $("sports").innerHTML = sports.map(sport => `
+    <button
+      class="${sport === currentSport ? "active" : ""}"
+      onclick="filterSport('${sport}')"
+    >
+      ${sport}
+    </button>
+  `).join("");
+
+  $("sport").innerHTML = sports
+    .slice(1)
+    .map(sport => `<option>${sport}</option>`)
+    .join("");
+}
+
+function filterSport(sport) {
+  currentSport = sport;
+  renderSports();
+  load();
+}
+
+async function load() {
+  const response = await fetch("/api/posts");
+  let posts = await response.json();
+
+  if (currentSport !== "Tous") {
+    posts = posts.filter(post => post.sport === currentSport);
+  }
+
+  if (!posts.length) {
+    $("feed").innerHTML = `
+      <div class="post">
+        Aucun post pour ce sport. Sois le premier !
+      </div>
+    `;
+    return;
+  }
+
+  $("feed").innerHTML = posts.map(post => `
+    <div class="post">
+      <div class="post-head">
+        <b>${esc(post.author)}</b>
+        <span>
+          ${esc(post.sport)} •
+          ${new Date(post.createdAt).toLocaleString("fr-FR")}
+        </span>
+      </div>
+
+      <p class="post-text">${esc(post.text)}</p>
+
+      ${
+        post.mediaUrl && post.mediaType === "image"
+          ? `<img class="media" src="${esc(post.mediaUrl)}" alt="">`
+          : ""
+      }
+
+      ${
+        post.mediaUrl && post.mediaType === "video"
+          ? `<video class="media" src="${esc(post.mediaUrl)}" controls></video>`
+          : ""
+      }
+
+      <div class="actions">
+        <button onclick="like(${post.id})">❤️ ${post.likes}</button>
+        <span>💬 ${post.comments.length}</span>
+      </div>
+
+      ${
+        post.comments
+          .map(comment => `
+            <div style="margin-top:8px;font-size:14px">
+              <b>${esc(comment.author)}</b> : ${esc(comment.text)}
+            </div>
+          `)
+          .join("")
+      }
+
+      <div class="row">
+        <input id="c${post.id}" placeholder="Commenter...">
+        <button onclick="comment(${post.id})">Envoyer</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[character]));
+}
+
+async function publish() {
+  const body = {
+    author: $("author").value.trim(),
+    sport: $("sport").value,
+    text: $("text").value.trim(),
+    mediaType: $("mediaType").value,
+    mediaUrl: $("mediaUrl").value.trim()
+  };
+
+  if (!body.author || !body.text) {
+    alert("Pseudo et texte obligatoires");
+    return;
+  }
+
+  await fetch("/api/posts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  $("text").value = "";
+  $("mediaUrl").value = "";
+  load();
+}
+
+async function like(id) {
+  await fetch(`/api/posts/${id}/like`, {
+    method: "POST"
+  });
+  load();
+}
+
+async function comment(id) {
+  const text = $("c" + id).value.trim();
+
+  if (!text) return;
+
+  const author = $("author").value.trim() || "Anonyme";
+
+  await fetch(`/api/posts/${id}/comments`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ author, text })
+  });
+
+  load();
+}
+
+renderSports();
+load();
+setInterval(load, 15000);
+</script>
+
+</body>
+</html>
